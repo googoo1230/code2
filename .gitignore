@@ -1,0 +1,4 @@
+app/config.py
+*.csv
+*.sql.bak
+__pycache__/
