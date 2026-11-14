@@ -41,7 +41,7 @@ def search_hospital(sido=None, sgg=None, htype=None, name=None):
     sql = ("SELECT h.name AS 병원명, h.type AS 종별, r.sido AS 시도, r.sgg AS 시군구, "
            "       h.address AS 주소, h.tel AS 전화 "
            "FROM hospital h "
-           "JOIN region r ON h.sgg_code = r.sgg_code ")
+           "JOIN region r ON h.region_id = r.region_id ")
     if where:
         sql += "WHERE " + " AND ".join(where) + " "
     sql += "ORDER BY h.name LIMIT 50"
@@ -58,7 +58,7 @@ def find_by_dept(dept, sido, sgg=None):
            "FROM hospital h "
            "JOIN hospital_dept hd ON h.ykiho = hd.ykiho "
            "JOIN department    d  ON hd.dept_code = d.dept_code "
-           "JOIN region        r  ON h.sgg_code = r.sgg_code "
+           "JOIN region        r  ON h.region_id = r.region_id "
            "WHERE " + " AND ".join(where) + " "
            "ORDER BY hd.specialist_cnt DESC, h.name LIMIT 100")
     return run(sql, params)
@@ -72,7 +72,7 @@ def dept_stats_by_region(sido, dept):
            "FROM hospital h "
            "JOIN hospital_dept hd ON h.ykiho = hd.ykiho "
            "JOIN department    d  ON hd.dept_code = d.dept_code "
-           "JOIN region        r  ON h.sgg_code = r.sgg_code "
+           "JOIN region        r  ON h.region_id = r.region_id "
            "WHERE r.sido = %s AND d.dept_name = %s "
            "GROUP BY r.sgg "
            "ORDER BY 병원수 DESC")
@@ -100,7 +100,7 @@ def top_specialists(dept, sido, n):
            "FROM hospital h "
            "JOIN hospital_dept hd ON h.ykiho = hd.ykiho "
            "JOIN department    d  ON hd.dept_code = d.dept_code "
-           "JOIN region        r  ON h.sgg_code = r.sgg_code "
+           "JOIN region        r  ON h.region_id = r.region_id "
            "WHERE d.dept_name = %s AND r.sido = %s "
            "ORDER BY hd.specialist_cnt DESC "
            "LIMIT %s")
@@ -111,7 +111,7 @@ def type_stats(sido):
     """E3 종별 병원 수 통계."""
     sql = ("SELECT h.type AS 종별, COUNT(*) AS 병원수 "
            "FROM hospital h "
-           "JOIN region r ON h.sgg_code = r.sgg_code "
+           "JOIN region r ON h.region_id = r.region_id "
            "WHERE r.sido = %s "
            "GROUP BY h.type "
            "ORDER BY 병원수 DESC")
@@ -123,7 +123,7 @@ def many_depts(sgg, min_cnt):
     sql = ("SELECT h.name AS 병원명, h.type AS 종별, COUNT(*) AS 과목수 "
            "FROM hospital h "
            "JOIN hospital_dept hd ON h.ykiho = hd.ykiho "
-           "JOIN region        r  ON h.sgg_code = r.sgg_code "
+           "JOIN region        r  ON h.region_id = r.region_id "
            "WHERE r.sgg = %s "
            "GROUP BY h.ykiho, h.name, h.type "
            "HAVING COUNT(*) >= %s "
@@ -140,19 +140,24 @@ def no_dept_regions(sido, dept):
            "    SELECT 1 FROM hospital h "
            "    JOIN hospital_dept hd ON h.ykiho = hd.ykiho "
            "    JOIN department    d  ON hd.dept_code = d.dept_code "
-           "    WHERE h.sgg_code = r.sgg_code AND d.dept_name = %s) "
+           "    WHERE h.region_id = r.region_id AND d.dept_name = %s) "
            "ORDER BY r.sgg")
     return run(sql, (sido, dept))
 
 
 # ───────────────────────── 입력 도우미 ─────────────────────────
 
-def distinct_values(kind):
-    """사용자가 입력할 수 있는 값 목록 (시도/종별/진료과목). 메뉴에서 '?' 입력 시 사용."""
-    sql = {
-        "sido": "SELECT DISTINCT sido FROM region ORDER BY sido",
-        "type": "SELECT DISTINCT type FROM hospital ORDER BY type",
-        "dept": "SELECT dept_name FROM department ORDER BY dept_name",
-    }[kind]
-    _, rows = run(sql)
+def distinct_values(kind, sido=None):
+    """사용자가 입력할 수 있는 값 목록 (시도/시군구/종별/진료과목). 메뉴에서 '?' 입력 시 사용.
+    시군구는 앞에서 시도를 입력했으면 그 시도의 시군구만 보여준다."""
+    if kind == "sgg" and sido:
+        sql, params = "SELECT sgg FROM region WHERE sido = %s ORDER BY sgg", (sido,)
+    else:
+        sql, params = {
+            "sido": "SELECT DISTINCT sido FROM region ORDER BY sido",
+            "sgg":  "SELECT sgg FROM region ORDER BY sido, sgg",
+            "type": "SELECT DISTINCT type FROM hospital ORDER BY type",
+            "dept": "SELECT dept_name FROM department ORDER BY dept_code",
+        }[kind], ()
+    _, rows = run(sql, params)
     return [r[0] for r in rows]

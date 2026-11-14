@@ -20,8 +20,8 @@ except ImportError:
 # (매개변수 이름, 화면 라벨, 필수 여부, 자료형, '?' 입력 시 보여줄 목록 종류)
 SIDO     = ("sido",    "시도 (예: 서울)",          True,  str, "sido")
 SIDO_OPT = ("sido",    "시도 (예: 서울)",          False, str, "sido")
-SGG      = ("sgg",     "시군구 (예: 강남구)",      True,  str, None)
-SGG_OPT  = ("sgg",     "시군구 (예: 강남구)",      False, str, None)
+SGG      = ("sgg",     "시군구 (예: 강남구, 부산해운대구)", True,  str, "sgg")
+SGG_OPT  = ("sgg",     "시군구 (예: 강남구, 부산해운대구)", False, str, "sgg")
 TYPE_OPT = ("htype",   "종별 (예: 의원)",          False, str, "type")
 NAME     = ("name",    "병원명 일부",              True,  str, None)
 NAME_OPT = ("name",    "병원명 일부",              False, str, None)
@@ -52,13 +52,14 @@ def print_menu():
     print("===============================")
 
 
-def show_choices(kind):
-    values = queries.distinct_values(kind)
+def show_choices(kind, sido=None):
+    values = queries.distinct_values(kind, sido)
     print("  선택 가능:", ", ".join(values) if values else "(없음)")
 
 
-def ask(field):
-    """입력 항목 하나를 받는다. 선택 항목은 Enter면 None, '?'면 선택지 목록을 보여준다."""
+def ask(field, sido=None):
+    """입력 항목 하나를 받는다. 선택 항목은 Enter면 None, '?'면 선택지 목록을 보여준다.
+    sido: 앞에서 입력한 시도 (시군구 목록을 그 시도로 좁힐 때 사용)"""
     _, label, required, kind, choices = field
     hint = "" if required else " [생략: Enter]"
     if choices:
@@ -66,7 +67,7 @@ def ask(field):
     while True:
         raw = input(f"  {label}{hint}: ").strip()
         if raw == "?" and choices:
-            show_choices(choices)
+            show_choices(choices, sido)
             continue
         if not raw:
             if required:
@@ -93,7 +94,9 @@ def show(cols, rows):
 def run_feature(key):
     title, func, fields = FEATURES[key]
     print(f"\n[{title}]")
-    args = {f[0]: ask(f) for f in fields}
+    args = {}
+    for f in fields:
+        args[f[0]] = ask(f, args.get("sido"))
     show(*func(**args))
 
 
